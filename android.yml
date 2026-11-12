@@ -1,0 +1,55 @@
+name: ReisePlayer Android APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Java 17 einrichten
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Flutter einrichten
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.1'
+          channel: stable
+          cache: true
+
+      - name: Android-Projektgerüst erzeugen
+        run: flutter create --platforms=android --org de.reiseplayer --project-name reiseplayer build_app
+
+      - name: App-Dateien einsetzen
+        run: |
+          cp app/pubspec.yaml build_app/pubspec.yaml
+          cp app/analysis_options.yaml build_app/analysis_options.yaml
+          mkdir -p build_app/lib
+          cp app/lib/main.dart build_app/lib/main.dart
+          sed -i 's/android:label="reiseplayer"/android:label="ReisePlayer"/' build_app/android/app/src/main/AndroidManifest.xml
+
+      - name: Abhängigkeiten laden
+        working-directory: build_app
+        run: flutter pub get
+
+      - name: APK bauen
+        working-directory: build_app
+        run: flutter build apk --release
+
+      - name: APK bereitstellen
+        uses: actions/upload-artifact@v4
+        with:
+          name: reiseplayer-android-apk
+          path: build_app/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
