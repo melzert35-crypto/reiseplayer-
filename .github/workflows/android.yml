@@ -43,37 +43,52 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
 
-          kts = Path("android/app/build.gradle.kts")
-          groovy = Path("android/app/build.gradle")
+          files = [
+              Path("android/app/build.gradle.kts"),
+              Path("android/app/build.gradle")
+          ]
 
-          if kts.exists():
-              path = kts
-              kotlin = True
-          elif groovy.exists():
-              path = groovy
-              kotlin = False
-          else:
-              raise SystemExit("Android-Gradle-Datei nicht gefunden")
+          found = False
 
-          lines = path.read_text().splitlines()
-          result = []
+          for path in files:
+              if not path.exists():
+                  continue
 
-          for line in lines:
-              indent = re.match(r"^\s*", line).group(0)
+              found = True
+              is_kotlin = path.suffix == ".kts"
+              lines = path.read_text().splitlines()
+              fixed = []
 
-              if re.match(r"^\s*(compileSdk|compileSdkVersion)\b", line):
-                  line = indent + ("compileSdk = 36" if kotlin else "compileSdkVersion 36")
+              for line in lines:
+                  indent = line[:len(line) - len(line.lstrip())]
 
-              elif re.match(r"^\s*(minSdk|minSdkVersion)\b", line):
-                  line = indent + ("minSdk = 23" if kotlin else "minSdkVersion 23")
+                  if "flutter.minSdkVersion" in line:
+                      line = indent + (
+                          "minSdk = 23" if is_kotlin
+                          else "minSdkVersion 23"
+                      )
 
-              result.append(line)
+                  elif "flutter.compileSdkVersion" in line:
+                      line = indent + (
+                          "compileSdk = 36" if is_kotlin
+                          else "compileSdkVersion 36"
+                      )
 
-          path.write_text("\n".join(result) + "\n")
-          print("Gradle-Datei korrigiert:", path)
-          print(path.read_text())
+                  fixed.append(line)
+
+              path.write_text("\n".join(fixed) + "\n")
+
+              print("Geprüft:", path)
+              for number, line in enumerate(fixed, 1):
+                  if "minSdk" in line or "compileSdk" in line:
+                      print(number, line)
+
+              if "flutter.minSdkVersion" in "\n".join(fixed):
+                  raise SystemExit("FEHLER: minSdk wurde nicht korrigiert")
+
+          if not found:
+              raise SystemExit("FEHLER: Keine Gradle-Datei gefunden")
           PY
 
       - name: Abhängigkeiten laden
