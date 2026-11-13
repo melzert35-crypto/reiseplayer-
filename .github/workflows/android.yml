@@ -1,3 +1,4 @@
+
 name: ReisePlayer Android APK
 
 on:
@@ -43,17 +44,22 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          path = Path("android/app/build.gradle.kts")
-          if path.exists():
-              text = path.read_text()
-              text = text.replace("compileSdk = flutter.compileSdkVersion", "compileSdk = 36")
-              text = text.replace("minSdk = flutter.minSdkVersion", "minSdk = 23")
-              path.write_text(text)
-              raise SystemExit(0)
+          kotlin_file = Path("android/app/build.gradle.kts")
+          groovy_file = Path("android/app/build.gradle")
 
-          path = Path("android/app/build.gradle")
-          if path.exists():
-              lines = path.read_text().splitlines()
+          if kotlin_file.exists():
+              text = kotlin_file.read_text()
+              text = text.replace(
+                  "compileSdk = flutter.compileSdkVersion",
+                  "compileSdk = 36"
+              )
+              text = text.replace(
+                  "minSdk = flutter.minSdkVersion",
+                  "minSdk = 23"
+              )
+              kotlin_file.write_text(text)
+          elif groovy_file.exists():
+              lines = groovy_file.read_text().splitlines()
               updated = []
               for line in lines:
                   if "compileSdkVersion" in line:
@@ -61,7 +67,9 @@ jobs:
                   elif "minSdkVersion" in line:
                       line = "    minSdkVersion 23"
                   updated.append(line)
-              path.write_text("\n".join(updated) + "\n")
+              groovy_file.write_text("\n".join(updated) + "\n")
+          else:
+              raise SystemExit("Keine unterstützte Android-Gradle-Datei gefunden.")
           PY
 
       - name: Abhängigkeiten laden
@@ -71,7 +79,6 @@ jobs:
       - name: Flutter analysieren
         working-directory: app/build_app
         run: |
-          # Entfernt den Flutter-Beispieltest, der auf das nicht vorhandene MyApp verweist.
           rm -rf test
           flutter analyze
 
@@ -85,3 +92,4 @@ jobs:
           name: reiseplayer-android-apk
           path: app/build_app/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
+          
