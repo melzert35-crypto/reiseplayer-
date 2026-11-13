@@ -38,38 +38,42 @@ jobs:
           mkdir -p build_app/lib
           cp -R lib/. build_app/lib/
 
-      - name: Android SDK auf API 36 setzen
+      - name: Android Gradle-Konfiguration korrigieren
         working-directory: app/build_app
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
-          kotlin_file = Path("android/app/build.gradle.kts")
-          groovy_file = Path("android/app/build.gradle")
+          kts = Path("android/app/build.gradle.kts")
+          groovy = Path("android/app/build.gradle")
 
-          if kotlin_file.exists():
-              text = kotlin_file.read_text()
-              text = text.replace(
-                  "compileSdk = flutter.compileSdkVersion",
-                  "compileSdk = 36"
-              )
-              text = text.replace(
-                  "minSdk = flutter.minSdkVersion",
-                  "minSdk = 23"
-              )
-              kotlin_file.write_text(text)
-          elif groovy_file.exists():
-              lines = groovy_file.read_text().splitlines()
-              updated = []
-              for line in lines:
-                  if "compileSdkVersion" in line:
-                      line = "    compileSdkVersion 36"
-                  elif "minSdkVersion" in line:
-                      line = "    minSdkVersion 23"
-                  updated.append(line)
-              groovy_file.write_text("\n".join(updated) + "\n")
+          if kts.exists():
+              path = kts
+              kotlin = True
+          elif groovy.exists():
+              path = groovy
+              kotlin = False
           else:
-              raise SystemExit("Keine unterstützte Android-Gradle-Datei gefunden.")
+              raise SystemExit("Android-Gradle-Datei nicht gefunden")
+
+          lines = path.read_text().splitlines()
+          result = []
+
+          for line in lines:
+              indent = re.match(r"^\s*", line).group(0)
+
+              if re.match(r"^\s*(compileSdk|compileSdkVersion)\b", line):
+                  line = indent + ("compileSdk = 36" if kotlin else "compileSdkVersion 36")
+
+              elif re.match(r"^\s*(minSdk|minSdkVersion)\b", line):
+                  line = indent + ("minSdk = 23" if kotlin else "minSdkVersion 23")
+
+              result.append(line)
+
+          path.write_text("\n".join(result) + "\n")
+          print("Gradle-Datei korrigiert:", path)
+          print(path.read_text())
           PY
 
       - name: Abhängigkeiten laden
