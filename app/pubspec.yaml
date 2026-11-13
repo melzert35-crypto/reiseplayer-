@@ -1,10 +1,10 @@
 name: reiseplayer
-description: Persönliche Offline-Musik- und Videothek
-publish_to: "none"
-version: 0.1.0+1
+description: Offline music and video player with free music discovery.
+publish_to: 'none'
+version: 0.2.0+2
 
 environment:
-  sdk: ">=3.9.0 <4.0.0"
+  sdk: '>=3.9.0 <4.0.0'
 
 dependencies:
   flutter:
