@@ -1,75 +1,87 @@
 name: ReisePlayer Android APK
 
 on:
-  push:
-    branches: ["main", "master"]
   workflow_dispatch:
-
-permissions:
-  contents: read
+  push:
+    branches:
+      - main
+      - master
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
+      - name: Repository auschecken
         uses: actions/checkout@v4
 
-      - name: Set up Java
+      - name: Java 17 einrichten
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: '17'
 
-      - name: Set up Flutter
+      - name: Flutter einrichten
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.35.1"
+          flutter-version: '3.35.1'
           channel: stable
           cache: true
 
-      - name: Create Android Flutter project
-        run: flutter create --platforms=android --org de.reiseplayer --project-name reiseplayer build_app
-
-      - name: Copy app source
+      - name: Android-Projekt vorbereiten
+        working-directory: app
         run: |
-          cp app/pubspec.yaml build_app/pubspec.yaml
-          cp app/analysis_options.yaml build_app/analysis_options.yaml
+          flutter create --platforms=android --org de.reiseplayer --project-name reiseplayer build_app
+          cp pubspec.yaml build_app/pubspec.yaml
+          cp analysis_options.yaml build_app/analysis_options.yaml
           mkdir -p build_app/lib
-          cp app/lib/main.dart build_app/lib/main.dart
+          cp -R lib/. build_app/lib/
 
-      - name: Set Android compile SDK to 36
-        working-directory: build_app
+      - name: Android SDK auf API 36 setzen
+        working-directory: app/build_app
         run: |
           python3 - <<'PY'
           from pathlib import Path
+
           path = Path("android/app/build.gradle.kts")
-          content = path.read_text()
-          lines = content.splitlines()
-          for i, line in enumerate(lines):
-              if "compileSdk" in line:
-                  lines[i] = "    compileSdk = 36"
-                  break
-          else:
-              raise SystemExit("compileSdk-Zeile nicht gefunden")
-          path.write_text("\n".join(lines) + "\n")
+          if path.exists():
+              text = path.read_text()
+              text = text.replace("compileSdk = flutter.compileSdkVersion", "compileSdk = 36")
+              text = text.replace("minSdk = flutter.minSdkVersion", "minSdk = 23")
+              path.write_text(text)
+              raise SystemExit(0)
+
+          path = Path("android/app/build.gradle")
+          if path.exists():
+              lines = path.read_text().splitlines()
+              updated = []
+              for line in lines:
+                  if "compileSdkVersion" in line:
+                      line = "    compileSdkVersion 36"
+                  elif "minSdkVersion" in line:
+                      line = "    minSdkVersion 23"
+                  updated.append(line)
+              path.write_text("\n".join(updated) + "\n")
           PY
 
-      - name: Get dependencies
-        working-directory: build_app
+      - name: Abhängigkeiten laden
+        working-directory: app/build_app
         run: flutter pub get
 
-      - name: Analyze
-        working-directory: build_app
-        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - name: Flutter analysieren
+        working-directory: app/build_app
+        run: |
+          # Entfernt den Flutter-Beispieltest, der auf das nicht vorhandene MyApp verweist.
+          rm -rf test
+          flutter analyze
 
-      - name: Build release APK
-        working-directory: build_app
+      - name: Release-APK bauen
+        working-directory: app/build_app
         run: flutter build apk --release
 
-      - name: Upload APK
+      - name: APK bereitstellen
         uses: actions/upload-artifact@v4
         with:
           name: reiseplayer-android-apk
-          path: build_app/build/app/outputs/flutter-apk/app-release.apk
+          path: app/build_app/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
