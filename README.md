@@ -1,37 +1,42 @@
-# ReisePlayer – Android Startpaket
+# ReisePlayer – Update 0.2
 
-Dieses Paket ist der erste lauffähige Grundaufbau für eine persönliche Offline-Mediathek.
+Android-Startpaket mit:
+- lokaler Musik- und Videobibliothek
+- Pause und Stoppen (Stop setzt den aktuellen Titel an den Anfang zurück)
+- neuer Rubrik **Entdecken**
+- Suchfeld für Titel, Interpret und Musikstil
+- Suche über Free Music Archive, Jamendo, Bandcamp und SoundCloud
+- Suche öffnet die Webtreffer im Browser; Downloads nur, wenn der Anbieter sie freigibt
 
-## Was Version 0.1 kann
-- Musikdateien vom Handy auswählen und in die private App-Mediathek kopieren
-- Videodateien auswählen und lokal speichern
-- importierte Musik in der App abspielen
-- importierte Videos in der App abspielen
-- Dateien aus der Mediathek löschen
-- YouTube separat in der offiziellen App bzw. im Browser öffnen (Online-Wiedergabe)
+## GitHub-Ordnerstruktur
 
-## Was ausdrücklich noch nicht enthalten ist
-- kein Downloader für YouTube oder geschützte Streamingdienste
-- keine Umgehung von Downloadbeschränkungen oder Kopierschutz
-- keine automatische Suche nach Musik aus dem Internet
-- noch keine Hintergrundwiedergabe bei geschlossener App
-- noch keine iPhone-Version
+```text
+reiseplayer/
+├── .github/
+│   └── workflows/
+│       └── android.yml
+├── app/
+│   ├── analysis_options.yaml
+│   ├── pubspec.yaml
+│   └── lib/
+│       └── main.dart
+└── README.md
+```
 
-YouTube-Inhalte, die nicht offiziell zum Download freigegeben sind, können nicht in die lokale Mediathek kopiert werden. Die App spielt dagegen eigene Dateien und legal heruntergeladene Musik/Videos offline ab.
+Die Inhalte aus diesem ZIP müssen direkt in das Hauptverzeichnis des Repositorys übertragen werden.
+Nicht den äußeren ZIP-Ordner als zusätzlichen Unterordner hochladen.
 
-## Dateien in GitHub
-Die ZIP enthält:
-- `.github/workflows/android.yml`
-- `app/pubspec.yaml`
-- `app/lib/main.dart`
-- `app/analysis_options.yaml`
+## APK bauen
 
-Der Workflow erzeugt beim Build ein frisches Flutter-Android-Projekt und kopiert den App-Code hinein. Deshalb müssen keine automatisch erzeugten Android-/Gradle-Dateien von Hand hochgeladen werden.
+1. Dateien mit exakt dieser Ordnerstruktur ins Repository hochladen.
+2. GitHub → Actions öffnen.
+3. **ReisePlayer Android APK** auswählen.
+4. Workflow starten bzw. den durch den Upload ausgelösten Lauf öffnen.
+5. Nach erfolgreichem Build das Artefakt `reiseplayer-android-apk` herunterladen.
 
-## GitHub-Voraussetzung
-Neues Repository anlegen, zum Beispiel `reiseplayer`, mit Branch `main`.
-Dann die vier enthaltenen Dateien mit exakt derselben Ordnerstruktur hochladen und committen.
-Danach in GitHub auf **Actions** gehen. Der Workflow **ReisePlayer Android APK** startet automatisch. Die fertige APK liegt nach erfolgreichem Lauf unter **Artifacts** als `reiseplayer-android-apk`.
+## Hinweise
 
-## Build-Umgebung
-Flutter 3.35.1, Java 17. Das Projekt ist auf Android ausgelegt.
+- Die Musiksuche verwendet eine Websuche mit auf die vier Anbieter begrenzten Suchbegriffen. Sie ist keine direkte Katalog-API und zeigt daher die vom Anbieter bzw. der Suchmaschine indexierten Treffer.
+- Ein Treffer ist nicht automatisch kostenlos oder herunterladbar. Lizenz und Download-Freigabe bitte auf der Anbieterseite prüfen.
+- YouTube wird separat geöffnet; geschützte Streams werden nicht heruntergeladen.
+- Der Build wurde vor dem Bereitstellen dieses Pakets nicht auf einem Android-Gerät ausgeführt. Bitte den GitHub-Actions-Build prüfen.
