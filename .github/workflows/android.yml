@@ -25,9 +25,12 @@ jobs:
       - name: Flutter einrichten
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.35.1'
+          flutter-version: '3.35.7'
           channel: stable
           cache: true
+
+      - name: Flutter-Version anzeigen
+        run: flutter --version
 
       - name: Android-Projekt vorbereiten
         working-directory: app
@@ -38,58 +41,11 @@ jobs:
           mkdir -p build_app/lib
           cp -R lib/. build_app/lib/
 
-      - name: Android Gradle-Konfiguration korrigieren
+      - name: Android-Konfiguration kontrollieren
         working-directory: app/build_app
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          files = [
-              Path("android/app/build.gradle.kts"),
-              Path("android/app/build.gradle")
-          ]
-
-          found = False
-
-          for path in files:
-              if not path.exists():
-                  continue
-
-              found = True
-              is_kotlin = path.suffix == ".kts"
-              lines = path.read_text().splitlines()
-              fixed = []
-
-              for line in lines:
-                  indent = line[:len(line) - len(line.lstrip())]
-
-                  if "flutter.minSdkVersion" in line:
-                      line = indent + (
-                          "minSdk = 23" if is_kotlin
-                          else "minSdkVersion 23"
-                      )
-
-                  elif "flutter.compileSdkVersion" in line:
-                      line = indent + (
-                          "compileSdk = 36" if is_kotlin
-                          else "compileSdkVersion 36"
-                      )
-
-                  fixed.append(line)
-
-              path.write_text("\n".join(fixed) + "\n")
-
-              print("Geprüft:", path)
-              for number, line in enumerate(fixed, 1):
-                  if "minSdk" in line or "compileSdk" in line:
-                      print(number, line)
-
-              if "flutter.minSdkVersion" in "\n".join(fixed):
-                  raise SystemExit("FEHLER: minSdk wurde nicht korrigiert")
-
-          if not found:
-              raise SystemExit("FEHLER: Keine Gradle-Datei gefunden")
-          PY
+          echo "Verwendete Android-Konfiguration:"
+          grep -nE 'compileSdk|minSdk|targetSdk' android/app/build.gradle.kts
 
       - name: Abhängigkeiten laden
         working-directory: app/build_app
