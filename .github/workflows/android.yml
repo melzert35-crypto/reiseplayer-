@@ -2,7 +2,7 @@ name: ReisePlayer Android APK
 
 on:
   push:
-    branches: [ main ]
+    branches: ["main", "master"]
   workflow_dispatch:
 
 permissions:
@@ -12,42 +12,62 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Repository auschecken
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Java 17 einrichten
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
-      - name: Flutter einrichten
+      - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.35.1'
+          flutter-version: "3.35.1"
           channel: stable
           cache: true
 
-      - name: Android-Projektgerüst erzeugen
+      - name: Create Android Flutter project
         run: flutter create --platforms=android --org de.reiseplayer --project-name reiseplayer build_app
 
-      - name: App-Dateien einsetzen
+      - name: Copy app source
         run: |
           cp app/pubspec.yaml build_app/pubspec.yaml
           cp app/analysis_options.yaml build_app/analysis_options.yaml
           mkdir -p build_app/lib
           cp app/lib/main.dart build_app/lib/main.dart
-          sed -i 's/android:label="reiseplayer"/android:label="ReisePlayer"/' build_app/android/app/src/main/AndroidManifest.xml
 
-      - name: Abhängigkeiten laden
+      - name: Set Android compile SDK to 36
+        working-directory: build_app
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("android/app/build.gradle.kts")
+          content = path.read_text()
+          lines = content.splitlines()
+          for i, line in enumerate(lines):
+              if "compileSdk" in line:
+                  lines[i] = "    compileSdk = 36"
+                  break
+          else:
+              raise SystemExit("compileSdk-Zeile nicht gefunden")
+          path.write_text("\n".join(lines) + "\n")
+          PY
+
+      - name: Get dependencies
         working-directory: build_app
         run: flutter pub get
 
-      - name: APK bauen
+      - name: Analyze
+        working-directory: build_app
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Build release APK
         working-directory: build_app
         run: flutter build apk --release
 
-      - name: APK bereitstellen
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: reiseplayer-android-apk
