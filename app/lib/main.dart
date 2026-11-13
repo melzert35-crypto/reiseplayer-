@@ -86,6 +86,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   static const _storageKey = 'reiseplayer_library_v1';
   final AudioPlayer _audioPlayer = AudioPlayer();
+  final TextEditingController _searchController = TextEditingController();
   final List<MediaItem> _items = [];
   int _tab = 0;
   String? _currentAudioId;
@@ -108,6 +109,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _audioPlayer.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -223,12 +225,58 @@ class _HomePageState extends State<HomePage> {
   Future<void> _playAudio(MediaItem item) async {
     try {
       await _audioPlayer.setFilePath(item.path);
-      await _audioPlayer.play();
       if (mounted) setState(() => _currentAudioId = item.id);
+      // play() läuft bis zum Ende des Titels. Deshalb nicht darauf warten,
+      // bevor die Oberfläche aktualisiert wird.
+      unawaited(
+        _audioPlayer.play().catchError((Object error) {
+          if (mounted) {
+            setState(() => _message = 'Wiedergabe fehlgeschlagen: $error');
+          }
+        }),
+      );
     } catch (error) {
       if (mounted) {
         setState(() => _message = 'Diese Audiodatei kann nicht abgespielt werden: $error');
       }
+    }
+  }
+
+  Future<void> _pauseAudio() async {
+    if (_currentAudioId == null) return;
+    await _audioPlayer.pause();
+  }
+
+  Future<void> _stopAudio() async {
+    if (_currentAudioId == null) return;
+    // Stop bedeutet: anhalten und den Titel an den Anfang zurücksetzen.
+    await _audioPlayer.pause();
+    await _audioPlayer.seek(Duration.zero);
+  }
+
+  Future<void> _searchFreeMusic({String? provider}) async {
+    final query = _searchController.text.trim();
+    if (query.isEmpty) {
+      setState(() => _message = 'Bitte zuerst einen Titel, Interpreten oder Musikstil eingeben.');
+      return;
+    }
+
+    const domains = {
+      'Free Music Archive': 'freemusicarchive.org',
+      'Jamendo': 'jamendo.com',
+      'Bandcamp': 'bandcamp.com',
+      'SoundCloud': 'soundcloud.com',
+    };
+
+    final selectedDomains = provider == null
+        ? domains.values.toList()
+        : [domains[provider]!];
+    final siteQuery = selectedDomains.map((domain) => 'site:$domain').join(' OR ');
+    final fullQuery = '$siteQuery "${query.replaceAll('"', ' ')}" free download';
+    final uri = Uri.https('www.google.com', '/search', {'q': fullQuery});
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && mounted) {
+      setState(() => _message = 'Die Suche konnte nicht geöffnet werden.');
     }
   }
 
@@ -267,7 +315,6 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final titles = ['Musik', 'Videos', 'Meine Mediathek'];
     return Scaffold(
       appBar: AppBar(
         title: const Row(
@@ -313,6 +360,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                   ),
+                if (_currentAudioId != null) _miniPlayer(),
                 Expanded(
                   child: IndexedStack(
                     index: _tab,
@@ -320,6 +368,7 @@ class _HomePageState extends State<HomePage> {
                       _mediaList(_audioItems, MediaKind.audio),
                       _mediaList(_videoItems, MediaKind.video),
                       _libraryOverview(),
+                      _discoverMusicPage(),
                     ],
                   ),
                 ),
@@ -332,8 +381,131 @@ class _HomePageState extends State<HomePage> {
           NavigationDestination(icon: Icon(Icons.music_note), label: 'Musik'),
           NavigationDestination(icon: Icon(Icons.movie_outlined), label: 'Videos'),
           NavigationDestination(icon: Icon(Icons.library_music), label: 'Mediathek'),
+          NavigationDestination(icon: Icon(Icons.travel_explore), label: 'Entdecken'),
         ],
       ),
+    );
+  }
+
+  Widget _miniPlayer() {
+    final matches = _items.where((item) => item.id == _currentAudioId);
+    if (matches.isEmpty) return const SizedBox.shrink();
+    final current = matches.first;
+
+    return StreamBuilder<PlayerState>(
+      stream: _audioPlayer.playerStateStream,
+      builder: (context, snapshot) {
+        final playing = snapshot.data?.playing ?? false;
+        return Container(
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: const Color(0xFF203330),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFF3C7467)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.music_note, color: Color(0xFF65D6B0)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  current.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              IconButton(
+                tooltip: playing ? 'Pause' : 'Weiter',
+                visualDensity: VisualDensity.compact,
+                onPressed: playing ? _pauseAudio : () => _audioPlayer.play(),
+                icon: Icon(playing ? Icons.pause : Icons.play_arrow),
+              ),
+              IconButton(
+                tooltip: 'Stop – zurück zum Anfang',
+                visualDensity: VisualDensity.compact,
+                onPressed: _stopAudio,
+                icon: const Icon(Icons.stop_circle_outlined, color: Color(0xFFFFC078)),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _discoverMusicPage() {
+    final providers = [
+      ('Alle Quellen', Icons.search),
+      ('Free Music Archive', Icons.library_music),
+      ('Jamendo', Icons.public),
+      ('Bandcamp', Icons.album),
+      ('SoundCloud', Icons.cloud),
+    ];
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      children: [
+        const Text(
+          'Kostenlose Musik entdecken',
+          style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Suche nach einem Song, Künstler oder Musikstil. ReisePlayer durchsucht die ausgewählten Musikquellen im Web.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _searchController,
+          textInputAction: TextInputAction.search,
+          onSubmitted: (_) => _searchFreeMusic(),
+          decoration: InputDecoration(
+            hintText: 'Titel, Interpret oder z. B. Electro Swing',
+            prefixIcon: const Icon(Icons.search),
+            suffixIcon: IconButton(
+              tooltip: 'Suche löschen',
+              onPressed: () => _searchController.clear(),
+              icon: const Icon(Icons.close),
+            ),
+            filled: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+        ),
+        const SizedBox(height: 12),
+        FilledButton.icon(
+          onPressed: () => _searchFreeMusic(),
+          icon: const Icon(Icons.travel_explore),
+          label: const Text('Alle kostenlosen Quellen durchsuchen'),
+        ),
+        const SizedBox(height: 18),
+        const Text(
+          'Einzelne Anbieter durchsuchen',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        ...providers.skip(1).map(
+          (entry) => Card(
+            child: ListTile(
+              leading: Icon(entry.$2, color: const Color(0xFF65D6B0)),
+              title: Text(entry.$1),
+              subtitle: const Text('Websuche nach Deinem Suchbegriff'),
+              trailing: const Icon(Icons.open_in_new),
+              onTap: () => _searchFreeMusic(provider: entry.$1),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Wichtig: Nicht jeder gefundene Titel ist kostenlos herunterladbar. '
+          'Achte auf die Download-Freigabe und die jeweilige Lizenz. '
+          'Bei SoundCloud ist ein Download nur möglich, wenn der Künstler ihn freigeschaltet hat. '
+          'Die Suche öffnet die Treffer im Browser; anschließend kannst Du freigegebene Dateien '
+          'über „Musik hinzufügen“ in Deine Mediathek importieren.',
+          style: TextStyle(fontSize: 12, color: Colors.white60),
+        ),
+      ],
     );
   }
 
